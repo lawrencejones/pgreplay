@@ -215,39 +215,39 @@ static void print_replay_statistics() {
 	if (minutes > 0) {
 		fprintf(sf, " %d minutes", minutes);
 	}
-	fprintf(sf, " %.3f seconds\n", seconds);
+	fprintf(sf, " %.6f seconds\n", seconds);
 	fprintf(sf, "Maximum lag behind schedule: %lu seconds\n", (unsigned long) secs_behind);
 	fprintf(sf, "Calls to the server: %lu\n", stat_actions);
 	if (runtime > 0.0) {
-		fprintf(sf, "(%.3f calls per second)\n", stat_actions / runtime);
+		fprintf(sf, "(%.6f calls per second)\n", stat_actions / runtime);
 	}
 
 	fprintf(sf, "Total number of connections: %lu\n", stat_sesscnt);
 	fprintf(sf, "Maximum number of concurrent connections: %lu\n", stat_sessmax);
 	if (runtime > 0.0) {
-		fprintf(sf, "Average number of concurrent connections: %.3f\n", session_time / runtime);
+		fprintf(sf, "Average number of concurrent connections: %.6f\n", session_time / runtime);
 	}
 	if (session_time > 0.0) {
-		fprintf(sf, "Average session idle percentage: %.3f%%\n", 100.0 * (session_time - busy_time) / session_time);
+		fprintf(sf, "Average session idle percentage: %.6f%%\n", 100.0 * (session_time - busy_time) / session_time);
 	}
 
 	fprintf(sf, "SQL statements executed: %lu\n", stat_stmt - stat_prep);
 	if (stat_stmt > stat_prep) {
-		fprintf(sf, "(%lu or %.3f%% of these completed with error)\n",
+		fprintf(sf, "(%lu or %.6f%% of these completed with error)\n",
 			stat_errors, (100.0 * stat_errors) / (stat_stmt - stat_prep));
 		fprintf(sf, "Maximum number of concurrent SQL statements: %lu\n", stat_stmtmax);
 		if (runtime > 0.0) {
-			fprintf(sf, "Average number of concurrent SQL statements: %.3f\n", busy_time / runtime);
+			fprintf(sf, "Average number of concurrent SQL statements: %.6f\n", busy_time / runtime);
 		}
-		fprintf(sf, "Average SQL statement duration: %.3f seconds\n", busy_time / stat_stmt);
-		fprintf(sf, "Maximum SQL statement duration: %.3f seconds\n",
+		fprintf(sf, "Average SQL statement duration: %.6f seconds\n", busy_time / stat_stmt);
+		fprintf(sf, "Maximum SQL statement duration: %.6f seconds\n",
 			stat_longstmt.tv_sec + stat_longstmt.tv_usec / 1000000.0);
 		fprintf(sf, "Statement duration histogram:\n");
-		fprintf(sf, "  0    to 0.02 seconds: %.3f%%\n", 100.0 * stat_hist[0] / histtotal);
-		fprintf(sf, "  0.02 to 0.1  seconds: %.3f%%\n", 100.0 * stat_hist[1] / histtotal);
-		fprintf(sf, "  0.1  to 0.5  seconds: %.3f%%\n", 100.0 * stat_hist[2] / histtotal);
-		fprintf(sf, "  0.5  to 2    seconds: %.3f%%\n", 100.0 * stat_hist[3] / histtotal);
-		fprintf(sf, "     over 2    seconds: %.3f%%\n", 100.0 * stat_hist[4] / histtotal);
+		fprintf(sf, "  0    to 0.02 seconds: %.6f%%\n", 100.0 * stat_hist[0] / histtotal);
+		fprintf(sf, "  0.02 to 0.1  seconds: %.6f%%\n", 100.0 * stat_hist[1] / histtotal);
+		fprintf(sf, "  0.1  to 0.5  seconds: %.6f%%\n", 100.0 * stat_hist[2] / histtotal);
+		fprintf(sf, "  0.5  to 2    seconds: %.6f%%\n", 100.0 * stat_hist[3] / histtotal);
+		fprintf(sf, "     over 2    seconds: %.6f%%\n", 100.0 * stat_hist[4] / histtotal);
 	}
 }
 	
