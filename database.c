@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <libpq-fe.h>
+#include <gsl/gsl_histogram.h>
 #ifdef HAVE_SYS_SELECT_H
 #	include <sys/select.h>
 #else
@@ -52,6 +53,23 @@
 		}  \
 	} while (0)
 #endif
+
+// Defines the histogram bucket ranges for storing durations
+static const double histogram_buckets[] = {
+  5.0,      10.0,      20.0,      30.0,      40.0,
+  50.0,      75.0,      100.0,    200.0,    300.0,
+  400.0,    500.0,    750.0,    1000.0,    1250.0,
+  1500.0,    1750.0,    2000.0,    2250.0,    2500.0,
+  3000.0,    4000.0,    5000.0,    6000.0,    7000.0,
+  8000.0,       9000.0,    10000.0,    15000.0,    30000.0,
+  45000.0,      60000.0,    90000.0,    120000.0,    150000.0,
+  180000.0,     180000.0,    240000.0,    300000.0,    360000.0,
+  420000.0,     480000.0,    540000.0,    600000.0,    660000.0,
+  720000.0,     780000.0,    840000.0,    900000.0,    960000.0,
+  1020000.0,    1080000.0,    1140000.0,    1200000.0,    1260000.0,
+  1320000.0,    1380000.0,    1440000.0,    1500000.0,    1560000.0,
+  1620000.0,    1680000.0,    1740000.0,    1800000.0,    5400000.0,
+};
 
 /* connect string */
 static char *conn_string;
@@ -110,7 +128,8 @@ static unsigned long stat_stmtmax = 0;        /* maximum concurrent statements *
 static unsigned long stat_sesscnt = 0;        /* total number of sessions */
 static unsigned long stat_sessions = 0;       /* number of concurrent sessions */
 static unsigned long stat_sessmax = 0;        /* maximum concurrent sessions */
-static unsigned long stat_hist[5] = {0, 0, 0, 0, 0};  /* duration histogram */
+
+static gsl_histogram* duration_histogram = NULL; /* duration histogram buckets */
 
 #define NUM_DELAY_STEPS 11
 
@@ -184,8 +203,7 @@ static void print_replay_statistics() {
 	int hours, minutes;
 	double seconds, runtime, session_time, busy_time;
 	struct timeval delta;
-	unsigned long histtotal =
-		stat_hist[0] + stat_hist[1] + stat_hist[2] + stat_hist[3] + stat_hist[4];
+	unsigned long histtotal = (unsigned long)(gsl_histogram_sum(duration_histogram));
 
 	fprintf(sf, "\nReplay statistics\n");
 	fprintf(sf, "=================\n\n");
@@ -243,14 +261,13 @@ static void print_replay_statistics() {
 		fprintf(sf, "Maximum SQL statement duration: %.6f seconds\n",
 			stat_longstmt.tv_sec + stat_longstmt.tv_usec / 1000000.0);
 		fprintf(sf, "Statement duration histogram:\n");
-		fprintf(sf, "  0    to 0.02 seconds: %.6f%%\n", 100.0 * stat_hist[0] / histtotal);
-		fprintf(sf, "  0.02 to 0.1  seconds: %.6f%%\n", 100.0 * stat_hist[1] / histtotal);
-		fprintf(sf, "  0.1  to 0.5  seconds: %.6f%%\n", 100.0 * stat_hist[2] / histtotal);
-		fprintf(sf, "  0.5  to 2    seconds: %.6f%%\n", 100.0 * stat_hist[3] / histtotal);
-		fprintf(sf, "     over 2    seconds: %.6f%%\n", 100.0 * stat_hist[4] / histtotal);
+
+    fprintf(sf, "Tracked %lu queries in our histogram:\n\n", histtotal);
+    gsl_histogram_fprintf(sf, duration_histogram, "%.0f", "%.0f");
 	}
 }
-	
+
+
 int database_consumer_init(const char *ignore, const char *host, int port, const char *passwd, double factor) {
 	int conn_string_len = 12;  /* port and '\0' */
 	const char *p;
@@ -265,6 +282,11 @@ int database_consumer_init(const char *ignore, const char *host, int port, const
 	}
 
 	replay_factor = factor;
+
+	debug(3, "Allocating histogram buckets%s\n", "");
+  size_t number_of_buckets = sizeof(histogram_buckets) / sizeof(double);
+  duration_histogram = gsl_histogram_alloc(number_of_buckets);
+  gsl_histogram_set_ranges(duration_histogram, histogram_buckets, 1 + number_of_buckets);
 
 	/* calculate length of connect string */
 	if (host) {
@@ -574,22 +596,7 @@ int database_consumer(replay_item *item) {
 									/* subtract statement start time */
 									timersub(&delta, &(conn->stmt_start), &delta);
 
-									/* add to duration histogram */
-									if (0 == delta.tv_sec) {
-										if (20000 >= delta.tv_usec) {
-											++stat_hist[0];
-										} else if (100000 >= delta.tv_usec) {
-											++stat_hist[1];
-										} else if (500000 >= delta.tv_usec) {
-											++stat_hist[2];
-										} else {
-											++stat_hist[3];
-										}
-									} else if (2 > delta.tv_sec) {
-										++stat_hist[3];
-									} else {
-										++stat_hist[4];
-									}
+                  gsl_histogram_increment(duration_histogram, (delta.tv_usec / 1000));
 
 									/* remember longest statement */
 									if ((delta.tv_sec > stat_longstmt.tv_sec)
@@ -840,9 +847,9 @@ int database_consumer(replay_item *item) {
 					debug(2, "Removing closed session 0x" UINT64_FORMAT "\n", replay_get_session_id(item));
 				} else {
 					debug(2, "Disconnecting database connection for session 0x" UINT64_FORMAT "\n", replay_get_session_id(item));
-	
+
 					PQfinish(found_conn->db_conn);
-	
+
 					/* remember session duration for statistics */
 					if (-1 == gettimeofday(&delta, NULL)) {
 						perror("Error calling gettimeofday");
@@ -850,11 +857,11 @@ int database_consumer(replay_item *item) {
 					} else {
 						/* subtract session start time */
 						timersub(&delta, &(found_conn->session_start), &delta);
-	
+
 						/* add to total */
 						timeradd(&stat_session, &delta, &stat_session);
 					}
-	
+
 					/* one less concurrent session */
 					--stat_sessions;
 				}

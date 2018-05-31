@@ -46,6 +46,10 @@ AC_CHECK_LIB([pq], [PQsendPrepare], [], [AC_MSG_ERROR([
 *** required is version 8.0 or better
 ])])
 
+AC_CHECK_LIB([m],[cos])
+AC_CHECK_LIB([gslcblas],[cblas_dgemm])
+AC_CHECK_LIB([gsl],[gsl_blas_dgemm])
+
 # special Windows settings
 if test $build_os = mingw32; then
 	AC_SUBST([EXTRA_OBJS], [windows.o])
@@ -58,6 +62,7 @@ fi
 AC_HEADER_TIME
 AC_CHECK_HEADERS([fcntl.h netinet/in.h stdint.h stdlib.h string.h sys/time.h unistd.h])
 AC_CHECK_HEADER([libpq-fe.h], [], [AC_MSG_ERROR([PostgreSQL header files not found])], [/* dummy */])
+AC_CHECK_HEADER([gsl/gsl_histogram.h], [], [AC_MSG_ERROR([GSL histogram header files not found])], [/* dummy */])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_SYS_LARGEFILE
